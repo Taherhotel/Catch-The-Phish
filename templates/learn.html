@@ -67,22 +67,20 @@
             background: rgba(255, 255, 255, 0.05);
             border-radius: 15px;
             overflow: hidden;
-            transition: transform 0.3s ease;
             cursor: pointer;
             position: relative;
             height: 400px;
-            perspective: 1000px;
-        }
-
-        .flashcard:hover {
-            transform: translateY(-10px);
+            perspective: 1500px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transform-style: preserve-3d;
         }
 
         .flashcard-inner {
             position: relative;
             width: 100%;
             height: 100%;
-            transition: transform 0.8s;
+            text-align: center;
+            transition: transform 0.6s;
             transform-style: preserve-3d;
         }
 
@@ -94,23 +92,29 @@
             position: absolute;
             width: 100%;
             height: 100%;
+            -webkit-backface-visibility: hidden;
             backface-visibility: hidden;
             padding: 1.5rem;
+            border-radius: 15px;
         }
 
         .flashcard-front {
+            background: rgba(255, 255, 255, 0.05);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            text-align: center;
+            z-index: 2;
         }
 
         .flashcard-back {
+            background: rgba(255, 255, 255, 0.08);
             transform: rotateY(180deg);
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: flex-start;
+            overflow-y: auto;
+            z-index: 1;
         }
 
         .flashcard-image {
@@ -169,6 +173,59 @@
             color: #cccccc;
             font-size: 1rem;
             line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .flashcard-details {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .flashcard-details h4 {
+            color: #ff0000;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .flashcard-details ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .flashcard-details li {
+            color: #ffffff;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+
+        .flashcard-details li::before {
+            content: '•';
+            color: #ff0000;
+            position: absolute;
+            left: 0;
+        }
+
+        .flashcard-example {
+            background: rgba(255, 0, 0, 0.1);
+            border-left: 4px solid #ff0000;
+            padding: 1rem;
+            margin-top: 1rem;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .flashcard-example h4 {
+            color: #ff0000;
+            margin-bottom: 0.5rem;
+        }
+
+        .flashcard-example p {
+            color: #ffffff;
+            font-size: 0.9rem;
+            font-style: italic;
         }
 
         .flashcard-tip {
@@ -214,6 +271,29 @@
             color: #ff0000;
         }
 
+        .click-indicator {
+            position: absolute;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+
+        .flashcard.flipped .click-indicator {
+            display: none;
+        }
+
         @media (max-width: 768px) {
             .flashcards-container {
                 grid-template-columns: 1fr;
@@ -240,6 +320,10 @@
                         </div>
                         <h3 class="flashcard-title">Email Phishing</h3>
                         <p class="flashcard-content">Click to learn more about email phishing attacks</p>
+                        <div class="click-indicator">
+                            <i class="fas fa-hand-pointer"></i>
+                            Flip
+                        </div>
                     </div>
                     <div class="flashcard-back">
                         <h3 class="flashcard-title">Email Phishing</h3>
@@ -266,6 +350,10 @@
                         </div>
                         <h3 class="flashcard-title">Spear Phishing</h3>
                         <p class="flashcard-content">Click to learn more about targeted phishing attacks</p>
+                        <div class="click-indicator">
+                            <i class="fas fa-hand-pointer"></i>
+                            Flip
+                        </div>
                     </div>
                     <div class="flashcard-back">
                         <h3 class="flashcard-title">Spear Phishing</h3>
@@ -292,6 +380,10 @@
                         </div>
                         <h3 class="flashcard-title">Clone Phishing</h3>
                         <p class="flashcard-content">Click to learn more about clone phishing attacks</p>
+                        <div class="click-indicator">
+                            <i class="fas fa-hand-pointer"></i>
+                            Flip
+                        </div>
                     </div>
                     <div class="flashcard-back">
                         <h3 class="flashcard-title">Clone Phishing</h3>
@@ -318,6 +410,10 @@
                         </div>
                         <h3 class="flashcard-title">Whaling</h3>
                         <p class="flashcard-content">Click to learn more about executive phishing attacks</p>
+                        <div class="click-indicator">
+                            <i class="fas fa-hand-pointer"></i>
+                            Flip
+                        </div>
                     </div>
                     <div class="flashcard-back">
                         <h3 class="flashcard-title">Whaling</h3>
@@ -330,6 +426,92 @@
                             <p>• Train executives on security</p>
                             <p>• Use secure communication channels</p>
                             <p>• Verify financial requests</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vishing -->
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="flashcard-image">
+                            <i class="fas fa-phone"></i>
+                        </div>
+                        <h3 class="flashcard-title">Vishing</h3>
+                        <p class="flashcard-content">Click to learn more about voice phishing attacks</p>
+                        <div class="click-indicator">
+                            <i class="fas fa-hand-pointer"></i>
+                            Flip
+                        </div>
+                    </div>
+                    <div class="flashcard-back">
+                        <h3 class="flashcard-title">Vishing (Voice Phishing)</h3>
+                        <p class="flashcard-content">
+                            Vishing is a type of phishing attack conducted over phone calls, where attackers impersonate legitimate organizations to steal sensitive information.
+                        </p>
+                        <div class="flashcard-details">
+                            <h4>Common Tactics:</h4>
+                            <ul>
+                                <li>Caller ID spoofing</li>
+                                <li>Automated voice messages</li>
+                                <li>Urgent requests for information</li>
+                                <li>Fake technical support calls</li>
+                            </ul>
+                        </div>
+                        <div class="flashcard-tip">
+                            <h4>How to Protect Yourself:</h4>
+                            <p>• Never share sensitive information over the phone</p>
+                            <p>• Verify caller identity independently</p>
+                            <p>• Be wary of urgent requests</p>
+                            <p>• Use call blocking for unknown numbers</p>
+                        </div>
+                        <div class="flashcard-example">
+                            <h4>Example:</h4>
+                            <p>"This is your bank's security department. We've detected suspicious activity on your account. Please verify your account number and PIN."</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Smishing -->
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="flashcard-image">
+                            <i class="fas fa-sms"></i>
+                        </div>
+                        <h3 class="flashcard-title">Smishing</h3>
+                        <p class="flashcard-content">Click to learn more about SMS phishing attacks</p>
+                        <div class="click-indicator">
+                            <i class="fas fa-hand-pointer"></i>
+                            Flip
+                        </div>
+                    </div>
+                    <div class="flashcard-back">
+                        <h3 class="flashcard-title">Smishing (SMS Phishing)</h3>
+                        <p class="flashcard-content">
+                            Smishing is a type of phishing attack conducted through text messages, where attackers send fraudulent SMS messages to trick recipients into revealing sensitive information.
+                        </p>
+                        <div class="flashcard-details">
+                            <h4>Common Tactics:</h4>
+                            <ul>
+                                <li>Fake delivery notifications</li>
+                                <li>Prize or reward messages</li>
+                                <li>Account verification requests</li>
+                                <li>Urgent action required messages</li>
+                            </ul>
+                        </div>
+                        <div class="flashcard-tip">
+                            <h4>How to Protect Yourself:</h4>
+                            <p>• Don't click links in text messages</p>
+                            <p>• Verify message sources</p>
+                            <p>• Use official apps for services</p>
+                            <p>• Report suspicious messages</p>
+                        </div>
+                        <div class="flashcard-example">
+                            <h4>Example:</h4>
+                            <p>"Your package delivery is pending. Click here to schedule: [malicious link]"</p>
                         </div>
                     </div>
                 </div>
@@ -349,11 +531,30 @@
     </div>
 
     <script>
-        // Add smooth animation to flashcards
-        document.querySelectorAll('.flashcard').forEach(card => {
-            card.addEventListener('click', function() {
-                this.classList.toggle('flipped');
+        // Wait for the DOM to be fully loaded
+        window.addEventListener('load', function() {
+            console.log('Page loaded, initializing flashcards...');
+            
+            // Get all flashcard elements
+            const flashcards = document.querySelectorAll('.flashcard');
+            console.log('Found flashcards:', flashcards.length);
+            
+            // Add click event listener to each flashcard
+            flashcards.forEach((card, index) => {
+                card.addEventListener('click', function(e) {
+                    console.log('Card clicked:', index);
+                    this.classList.toggle('flipped');
+                });
             });
+        });
+
+        // Alternative click handler using event delegation
+        document.addEventListener('click', function(e) {
+            const card = e.target.closest('.flashcard');
+            if (card) {
+                console.log('Card clicked through delegation');
+                card.classList.toggle('flipped');
+            }
         });
     </script>
 </body>
