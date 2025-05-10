@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learn About Phishing - Catch The Phish</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 1rem 0;
+            border-bottom: 2px solid #ff0000;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.3);
+            margin: 0;
+        }
+
+        .flashcards-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .flashcard {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            height: 400px;
+            perspective: 1000px;
+        }
+
+        .flashcard:hover {
+            transform: translateY(-10px);
+        }
+
+        .flashcard-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.8s;
+            transform-style: preserve-3d;
+        }
+
+        .flashcard.flipped .flashcard-inner {
+            transform: rotateY(180deg);
+        }
+
+        .flashcard-front, .flashcard-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            padding: 1.5rem;
+        }
+
+        .flashcard-front {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .flashcard-back {
+            transform: rotateY(180deg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .flashcard-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            transition: transform 0.3s ease;
+            background: linear-gradient(45deg, rgba(255, 0, 0, 0.1), rgba(255, 0, 0, 0.2));
+            position: relative;
+            overflow: hidden;
+        }
+
+        .flashcard-image::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255, 255, 255, 0.2),
+                transparent
+            );
+            transition: 0.5s;
+        }
+
+        .flashcard:hover .flashcard-image::before {
+            left: 100%;
+        }
+
+        .flashcard-image i {
+            font-size: 4rem;
+            color: rgba(255, 0, 0, 0.3);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .flashcard:hover .flashcard-image {
+            transform: scale(1.05);
+        }
+
+        .flashcard-title {
+            font-size: 1.5rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+            color: #ffffff;
+        }
+
+        .flashcard-content {
+            color: #cccccc;
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+
+        .flashcard-tip {
+            background: rgba(255, 0, 0, 0.1);
+            border-left: 4px solid #ff0000;
+            padding: 1rem;
+            margin-top: 1rem;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .flashcard-tip h4 {
+            color: #ff0000;
+            margin-bottom: 0.5rem;
+        }
+
+        .flashcard-tip p {
+            color: #ffffff;
+            font-size: 0.9rem;
+        }
+
+        .navigation {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .nav-button {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            padding: 0.8rem 1.5rem;
+            color: #ffffff;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-button:hover {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff0000;
+        }
+
+        @media (max-width: 768px) {
+            .flashcards-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo-container">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="logo">
+                <h1>Learn About Phishing</h1>
+            </div>
+        </header>
+
+        <div class="flashcards-container">
+            <!-- Email Phishing -->
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="flashcard-image">
+                            <i class="fas fa-envelope"></i>
+                        </div>
+                        <h3 class="flashcard-title">Email Phishing</h3>
+                        <p class="flashcard-content">Click to learn more about email phishing attacks</p>
+                    </div>
+                    <div class="flashcard-back">
+                        <h3 class="flashcard-title">Email Phishing</h3>
+                        <p class="flashcard-content">
+                            Email phishing is a type of cyber attack where attackers send fraudulent emails that appear to be from legitimate sources to trick recipients into revealing sensitive information.
+                        </p>
+                        <div class="flashcard-tip">
+                            <h4>How to Protect Yourself:</h4>
+                            <p>• Check sender's email address carefully</p>
+                            <p>• Look for spelling and grammar errors</p>
+                            <p>• Never click suspicious links</p>
+                            <p>• Verify urgent requests through other channels</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Spear Phishing -->
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="flashcard-image">
+                            <i class="fas fa-bullseye"></i>
+                        </div>
+                        <h3 class="flashcard-title">Spear Phishing</h3>
+                        <p class="flashcard-content">Click to learn more about targeted phishing attacks</p>
+                    </div>
+                    <div class="flashcard-back">
+                        <h3 class="flashcard-title">Spear Phishing</h3>
+                        <p class="flashcard-content">
+                            Spear phishing is a targeted form of phishing where attackers customize their messages for specific individuals or organizations, making them more convincing.
+                        </p>
+                        <div class="flashcard-tip">
+                            <h4>How to Protect Yourself:</h4>
+                            <p>• Be cautious of personalized emails</p>
+                            <p>• Verify unusual requests from colleagues</p>
+                            <p>• Use multi-factor authentication</p>
+                            <p>• Keep personal information private</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Clone Phishing -->
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="flashcard-image">
+                            <i class="fas fa-copy"></i>
+                        </div>
+                        <h3 class="flashcard-title">Clone Phishing</h3>
+                        <p class="flashcard-content">Click to learn more about clone phishing attacks</p>
+                    </div>
+                    <div class="flashcard-back">
+                        <h3 class="flashcard-title">Clone Phishing</h3>
+                        <p class="flashcard-content">
+                            Clone phishing involves creating a nearly identical copy of a legitimate email, but with malicious links or attachments, often sent from a spoofed address.
+                        </p>
+                        <div class="flashcard-tip">
+                            <h4>How to Protect Yourself:</h4>
+                            <p>• Check email headers carefully</p>
+                            <p>• Verify unexpected attachments</p>
+                            <p>• Use email security tools</p>
+                            <p>• Report suspicious emails</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Whaling -->
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="flashcard-image">
+                            <i class="fas fa-user-tie"></i>
+                        </div>
+                        <h3 class="flashcard-title">Whaling</h3>
+                        <p class="flashcard-content">Click to learn more about executive phishing attacks</p>
+                    </div>
+                    <div class="flashcard-back">
+                        <h3 class="flashcard-title">Whaling</h3>
+                        <p class="flashcard-content">
+                            Whaling is a type of phishing attack that specifically targets high-profile individuals like executives or senior management to steal sensitive information or money.
+                        </p>
+                        <div class="flashcard-tip">
+                            <h4>How to Protect Yourself:</h4>
+                            <p>• Implement strict approval processes</p>
+                            <p>• Train executives on security</p>
+                            <p>• Use secure communication channels</p>
+                            <p>• Verify financial requests</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="navigation">
+            <a href="/" class="nav-button">
+                <i class="fas fa-arrow-left"></i>
+                Back to Scanner
+            </a>
+            <a href="/dashboard" class="nav-button">
+                <i class="fas fa-chart-line"></i>
+                View Analytics
+            </a>
+        </div>
+    </div>
+
+    <script>
+        // Add smooth animation to flashcards
+        document.querySelectorAll('.flashcard').forEach(card => {
+            card.addEventListener('click', function() {
+                this.classList.toggle('flipped');
+            });
+        });
+    </script>
+</body>
+</html> 

@@ -30,12 +30,57 @@ from reportlab.lib.units import inch
 import threading
 import queue
 import time
+from pymongo import MongoClient
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+# MongoDB connection
+try:
+    client = MongoClient('mongodb://localhost:27017/')
+    db = client['phishing_detection']
+except Exception as e:
+    print(f"Error connecting to MongoDB: {e}")
+    db = None
+
 # Mock database for testing
-mock_db = []
+mock_db = [
+    {
+        "url": "https://example-bank.com",
+        "title": "Example Bank",
+        "is_phishing": False,
+        "timestamp": (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S'),
+        "risk_score": 15
+    },
+    {
+        "url": "https://suspicious-bank-login.com",
+        "title": "Bank Login",
+        "is_phishing": True,
+        "timestamp": (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S'),
+        "risk_score": 85
+    },
+    {
+        "url": "https://secure-banking.com",
+        "title": "Secure Banking",
+        "is_phishing": False,
+        "timestamp": (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d %H:%M:%S'),
+        "risk_score": 20
+    },
+    {
+        "url": "https://bank-verify-account.com",
+        "title": "Verify Your Account",
+        "is_phishing": True,
+        "timestamp": (datetime.now() - timedelta(days=4)).strftime('%Y-%m-%d %H:%M:%S'),
+        "risk_score": 75
+    },
+    {
+        "url": "https://legitimate-bank.com",
+        "title": "Legitimate Bank",
+        "is_phishing": False,
+        "timestamp": (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d %H:%M:%S'),
+        "risk_score": 10
+    }
+]
 
 # Queue for storing crawling results
 crawl_results = queue.Queue()
@@ -73,13 +118,30 @@ def index():
 
         # Calculate risk score
         risk_score = calculate_risk_score(analyze_url(url))
+        is_phishing = risk_score >= 40
 
-        # Store in mock database
-        mock_db.append({
+        # Store in mock database with timestamp
+        scan_result = {
             "url": url,
             "title": url,  # Using URL as title for mock
-            "is_phishing": risk_score >= 40
-        })
+            "is_phishing": is_phishing,
+            "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            "risk_score": risk_score
+        }
+        mock_db.append(scan_result)
+
+        # If MongoDB is available, store there too
+        if db is not None:
+            try:
+                db.bank_websites.insert_one({
+                    "url": url,
+                    "title": url,
+                    "is_phishing": "1" if is_phishing else "0",
+                    "crawled_at": datetime.now(),
+                    "confidence_score": risk_score
+                })
+            except Exception as e:
+                print(f"Error storing in MongoDB: {e}")
 
         return jsonify({
             "url": url,
@@ -351,59 +413,219 @@ def scan():
 
 @app.route('/dashboard')
 def dashboard():
-    # Get total counts
-    total_sites = db.bank_websites.count_documents({})
-    safe_sites = db.bank_websites.count_documents({"is_phishing": "0"})
-    phishing_sites = db.bank_websites.count_documents({"is_phishing": "1"})
-    phishing_rate = round((phishing_sites / total_sites * 100) if total_sites > 0 else 0, 2)
+    try:
+        if db is None:
+            # If MongoDB is not available, use mock data
+            total_sites = len(mock_db)
+            safe_sites = sum(1 for site in mock_db if not site.get('is_phishing', False))
+            phishing_sites = sum(1 for site in mock_db if site.get('is_phishing', False))
+            phishing_rate = round((phishing_sites / total_sites * 100) if total_sites > 0 else 0, 2)
 
-    # Get top phishing domains
-    top_phishing_domains = list(db.bank_websites.find(
-        {"is_phishing": "1"},
-        {"url": 1, "crawled_at": 1, "confidence_score": 1, "_id": 0}
-    ).sort("confidence_score", -1).limit(10))
+            # Get top phishing domains from mock data
+            top_phishing_domains = [
+                {
+                    'url': site['url'],
+                    'detection_date': site.get('timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+                    'confidence_score': site.get('risk_score', 0)
+                }
+                for site in mock_db if site.get('is_phishing', False)
+            ][:10]
 
-    # Get recent activity
-    recent_activity = list(db.bank_websites.find(
-        {},
-        {"url": 1, "crawled_at": 1, "is_phishing": 1, "title": 1, "_id": 0}
-    ).sort("crawled_at", -1).limit(10))
+            # Get recent activity from mock data
+            recent_activity = [
+                {
+                    'url': site['url'],
+                    'timestamp': site.get('timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+                    'is_phishing': bool(site.get('is_phishing', False)),  # Convert to boolean
+                    'title': site.get('title', '')
+                }
+                for site in mock_db[-10:]
+            ]
 
-    # Get daily trends for the last 7 days
-    dates = []
-    safe_trend = []
-    phishing_trend = []
-    
-    for i in range(6, -1, -1):
-        date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
-        dates.append(date)
+        else:
+            # Get total counts from MongoDB
+            total_sites = db.bank_websites.count_documents({})
+            safe_sites = db.bank_websites.count_documents({"is_phishing": "0"})
+            phishing_sites = db.bank_websites.count_documents({"is_phishing": "1"})
+            phishing_rate = round((phishing_sites / total_sites * 100) if total_sites > 0 else 0, 2)
+
+            # Get top phishing domains
+            top_phishing_domains = list(db.bank_websites.find(
+                {"is_phishing": "1"},
+                {"url": 1, "crawled_at": 1, "confidence_score": 1, "_id": 0}
+            ).sort("confidence_score", -1).limit(10))
+
+            # Get recent activity and convert is_phishing to boolean
+            recent_activity = []
+            for doc in db.bank_websites.find(
+                {},
+                {"url": 1, "crawled_at": 1, "is_phishing": 1, "title": 1, "_id": 0}
+            ).sort("crawled_at", -1).limit(10):
+                recent_activity.append({
+                    'url': doc['url'],
+                    'timestamp': doc['crawled_at'].strftime('%Y-%m-%d %H:%M:%S'),
+                    'is_phishing': doc['is_phishing'] == "1",  # Convert to boolean
+                    'title': doc.get('title', '')
+                })
+
+        # Get daily trends for the last 7 days
+        dates = []
+        safe_trend = []
+        phishing_trend = []
         
-        start_of_day = datetime.strptime(date, '%Y-%m-%d')
-        end_of_day = start_of_day + timedelta(days=1)
+        for i in range(6, -1, -1):
+            date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+            dates.append(date)
+            
+            start_of_day = datetime.strptime(date, '%Y-%m-%d')
+            end_of_day = start_of_day + timedelta(days=1)
+            
+            if db is None:
+                # Calculate trends from mock data
+                safe_count = sum(1 for site in mock_db 
+                               if not site.get('is_phishing', False) 
+                               and datetime.strptime(site.get('timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S')), 
+                                                   '%Y-%m-%d %H:%M:%S').date() == start_of_day.date())
+                phishing_count = sum(1 for site in mock_db 
+                                   if site.get('is_phishing', False) 
+                                   and datetime.strptime(site.get('timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S')), 
+                                                       '%Y-%m-%d %H:%M:%S').date() == start_of_day.date())
+            else:
+                # Calculate trends from MongoDB
+                safe_count = db.bank_websites.count_documents({
+                    "is_phishing": "0",
+                    "crawled_at": {"$gte": start_of_day, "$lt": end_of_day}
+                })
+                
+                phishing_count = db.bank_websites.count_documents({
+                    "is_phishing": "1",
+                    "crawled_at": {"$gte": start_of_day, "$lt": end_of_day}
+                })
+            
+            safe_trend.append(safe_count)
+            phishing_trend.append(phishing_count)
+
+        return render_template('dashboard.html',
+                             total_sites=total_sites,
+                             safe_sites=safe_sites,
+                             phishing_sites=phishing_sites,
+                             phishing_rate=phishing_rate,
+                             top_phishing_domains=top_phishing_domains,
+                             recent_activity=recent_activity,
+                             dates=dates,
+                             safe_trend=safe_trend,
+                             phishing_trend=phishing_trend)
+
+    except Exception as e:
+        print(f"Dashboard Error: {e}")
+        return render_template('dashboard.html',
+                             total_sites=0,
+                             safe_sites=0,
+                             phishing_sites=0,
+                             phishing_rate=0,
+                             top_phishing_domains=[],
+                             recent_activity=[],
+                             dates=[],
+                             safe_trend=[],
+                             phishing_trend=[])
+
+@app.route('/learn')
+def learn():
+    return render_template('learn.html')
+
+@app.route('/bulk_scan', methods=['POST'])
+def bulk_scan():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided."}), 400
+
+        urls = data.get("urls", [])
+        if not urls:
+            return jsonify({"error": "No URLs provided."}), 400
+
+        results = []
+        errors = []
         
-        safe_count = db.bank_websites.count_documents({
-            "is_phishing": "0",
-            "crawled_at": {"$gte": start_of_day, "$lt": end_of_day}
+        for url in urls:
+            try:
+                # Validate URL format
+                if not url.startswith(('http://', 'https://')):
+                    url = f'https://{url}'
+
+                # Extract features
+                features = {
+                    "url_features": extract_url_features(url),
+                    "keyword_features": extract_keyword_features(url),
+                    "content_features": extract_content_features(url),
+                    "domain_features": extract_domain_features(url),
+                    "redirection_count": extract_redirection_count(url),
+                    "certificate_info": get_certificate_info(url),
+                    "domain_age": get_domain_age(url),
+                    "dns_record_count": get_dns_record_count(url),
+                    "check_spf_dmarc": check_spf_dmarc(url),
+                    "is_shortened_url": is_shortened_url(url),
+                    'virus_total': check_url_virustotal(url),
+                    'google_safe_browsing': check_google_safe_browsing(url)
+                }
+
+                # Calculate risk score
+                risk_score = calculate_risk_score(analyze_url(url))
+                is_phishing = risk_score >= 40
+
+                # Store in mock database with timestamp
+                scan_result = {
+                    "url": url,
+                    "title": url,
+                    "is_phishing": is_phishing,
+                    "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    "risk_score": risk_score
+                }
+                mock_db.append(scan_result)
+
+                # If MongoDB is available, store there too
+                if db is not None:
+                    try:
+                        db.bank_websites.insert_one({
+                            "url": url,
+                            "title": url,
+                            "is_phishing": "1" if is_phishing else "0",
+                            "crawled_at": datetime.now(),
+                            "confidence_score": risk_score
+                        })
+                    except Exception as e:
+                        print(f"Error storing in MongoDB: {e}")
+
+                results.append({
+                    "url": url,
+                    "features": features,
+                    'risk_score': risk_score,
+                    'verdict': (
+                        "Highly suspicious ⚠" if risk_score >= 70 else
+                        "Moderately suspicious ⚠" if risk_score >= 40 else
+                        "Likely safe ✅ (Still verify manually)"
+                    )
+                })
+            except Exception as e:
+                print(f"Error processing URL {url}: {str(e)}")
+                errors.append({
+                    "url": url,
+                    "error": str(e)
+                })
+
+        return jsonify({
+            "results": results,
+            "errors": errors,
+            "total_scanned": len(urls),
+            "successful_scans": len(results),
+            "failed_scans": len(errors),
+            "suspicious_count": sum(1 for r in results if r['risk_score'] >= 40),
+            "safe_count": sum(1 for r in results if r['risk_score'] < 40)
         })
-        
-        phishing_count = db.bank_websites.count_documents({
-            "is_phishing": "1",
-            "crawled_at": {"$gte": start_of_day, "$lt": end_of_day}
-        })
-        
-        safe_trend.append(safe_count)
-        phishing_trend.append(phishing_count)
 
-    return render_template('dashboard.html',
-                         total_sites=total_sites,
-                         safe_sites=safe_sites,
-                         phishing_sites=phishing_sites,
-                         phishing_rate=phishing_rate,
-                         top_phishing_domains=top_phishing_domains,
-                         recent_activity=recent_activity,
-                         dates=dates,
-                         safe_trend=safe_trend,
-                         phishing_trend=phishing_trend)
+    except Exception as e:
+        print(f"Bulk scan error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 def background_processor():
     """Background task to process crawl results"""

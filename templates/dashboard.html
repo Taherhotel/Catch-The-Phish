@@ -13,7 +13,7 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Roboto', sans-serif;
+            font-family: 'Playfair Display', serif;
         }
 
         body {
@@ -348,7 +348,7 @@
             data: {
                 labels: ['Safe Sites', 'Phishing Sites'],
                 datasets: [{
-                    data: [{{ safe_sites }}, {{ phishing_sites }}],
+                    data: [JSON.parse('{{ safe_sites|tojson|safe }}'), JSON.parse('{{ phishing_sites|tojson|safe }}')],
                     backgroundColor: ['#28a745', '#dc3545'],
                     borderColor: ['#1a1a1a', '#1a1a1a'],
                     borderWidth: 2
@@ -373,15 +373,15 @@
         new Chart(trendsCtx, {
             type: 'line',
             data: {
-                labels: {{ dates|tojson }},
+                labels: JSON.parse('{{ dates|tojson|safe }}'),
                 datasets: [{
                     label: 'Safe Sites',
-                    data: {{ safe_trend|tojson }},
+                    data: JSON.parse('{{ safe_trend|tojson|safe }}'),
                     borderColor: '#28a745',
                     tension: 0.4
                 }, {
                     label: 'Phishing Sites',
-                    data: {{ phishing_trend|tojson }},
+                    data: JSON.parse('{{ phishing_trend|tojson|safe }}'),
                     borderColor: '#dc3545',
                     tension: 0.4
                 }]

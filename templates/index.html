@@ -7,86 +7,503 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        .layout-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 250px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 2rem 1rem;
+            border-right: 1px solid rgba(255, 0, 0, 0.2);
+            position: fixed;
+            height: 100vh;
+            left: 0;
+            top: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .sidebar.collapsed {
+            width: 60px;
+            padding: 2rem 0.5rem;
+        }
+
+        .sidebar-logo {
+            text-align: center;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .sidebar-logo h2 {
+            font-size: 1.2rem;
+            color: #ffffff;
+            transition: opacity 0.3s ease;
+        }
+
+        .sidebar.collapsed .sidebar-logo h2 {
+            opacity: 0;
+            display: none;
+        }
+
+        .sidebar-logo img {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 0.5rem;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar-menu li {
+            margin-bottom: 0.5rem;
+        }
+
+        .sidebar-menu a {
+            display: flex;
+            align-items: center;
+            padding: 0.8rem 1rem;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .sidebar-menu a:hover {
+            background: rgba(255, 0, 0, 0.1);
+            color: #ff0000;
+        }
+
+        .sidebar-menu i {
+            margin-right: 0.8rem;
+            width: 20px;
+            text-align: center;
+            transition: margin 0.3s ease;
+        }
+
+        .sidebar.collapsed .sidebar-menu i {
+            margin-right: 0;
+        }
+
+        .sidebar-menu span {
+            transition: opacity 0.3s ease;
+        }
+
+        .sidebar.collapsed .sidebar-menu span {
+            opacity: 0;
+            display: none;
+        }
+
+        .main-wrapper {
+            flex: 1;
+            margin-left: 250px;
+            padding: 2rem;
+            transition: margin-left 0.3s ease;
+        }
+
+        .main-wrapper.expanded {
+            margin-left: 60px;
+        }
+
+        .toggle-sidebar {
+            position: fixed;
+            left: 250px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(255, 0, 0, 0.2);
+            border-left: none;
+            color: #ffffff;
+            padding: 0.5rem;
+            cursor: pointer;
+            z-index: 1001;
+            transition: all 0.3s ease;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .toggle-sidebar:hover {
+            background: rgba(255, 0, 0, 0.1);
+            color: #ff0000;
+        }
+
+        .toggle-sidebar.collapsed {
+            left: 60px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 60px;
+                padding: 1rem 0.5rem;
+            }
+
+            .sidebar-logo h2,
+            .sidebar-menu span {
+                display: none;
+            }
+
+            .sidebar-menu a {
+                justify-content: center;
+                padding: 0.8rem;
+            }
+
+            .sidebar-menu i {
+                margin-right: 0;
+            }
+
+            .main-wrapper {
+                margin-left: 60px;
+            }
+
+            .toggle-sidebar {
+                display: none;
+            }
+        }
+
+        .bulk-scan-section {
+            margin-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 1rem;
+        }
+
+        .bulk-input-wrapper {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+
+        .bulk-url-input {
+            flex: 1;
+            min-height: 100px;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #ffffff;
+            font-family: 'Roboto', sans-serif;
+            resize: vertical;
+        }
+
+        .bulk-url-input:focus {
+            outline: none;
+            border-color: #ff0000;
+        }
+
+        .bulk-results-section {
+            margin-top: 2rem;
+        }
+
+        .bulk-summary {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card i {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card span {
+            display: block;
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin: 0.5rem 0;
+        }
+
+        .stat-card label {
+            color: #cccccc;
+            font-size: 0.9rem;
+        }
+
+        .stat-card.safe i {
+            color: #28a745;
+        }
+
+        .stat-card.suspicious i {
+            color: #ff0000;
+        }
+
+        .bulk-results-list {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .result-item {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.3s ease;
+        }
+
+        .result-item:hover {
+            transform: translateX(5px);
+        }
+
+        .result-item.safe {
+            border-left: 4px solid #28a745;
+        }
+
+        .result-item.suspicious {
+            border-left: 4px solid #ff0000;
+        }
+
+        .result-url {
+            flex: 1;
+            margin-right: 1rem;
+        }
+
+        .result-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .result-status.safe {
+            color: #28a745;
+        }
+
+        .result-status.suspicious {
+            color: #ff0000;
+        }
+
+        .results-tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .tab-button {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            padding: 0.5rem 1rem;
+            color: #ffffff;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab-button:hover {
+            background: rgba(255, 0, 0, 0.1);
+        }
+
+        .tab-button.active {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff0000;
+        }
+
+        .stat-card.error i {
+            color: #dc3545;
+        }
+
+        .error-item {
+            background: rgba(220, 53, 69, 0.1);
+            border-left: 4px solid #dc3545;
+        }
+
+        .error-message {
+            color: #dc3545;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem;
+            background: rgba(220, 53, 69, 0.1);
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <div class="logo-container">
-                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="logo">
-                <h1>Catch The Phish</h1>
+    <div class="layout-container">
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <h2>Navigation</h2>
             </div>
-            <p class="subtitle">Advanced Phishing Detection & Security Analysis</p>
-        </header>
+            <ul class="sidebar-menu">
+                <li>
+                    <a href="/">
+                        <i class="fas fa-home"></i>
+                        <span>Home</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/dashboard">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Analytics Dashboard</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/learn">
+                        <i class="fas fa-graduation-cap"></i>
+                        <span>Learn About Phishing</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/crawler">
+                        <i class="fas fa-spider"></i>
+                        <span>Live Crawler</span>
+                    </a>
+                </li>
+            </ul>
+        </aside>
+        <button class="toggle-sidebar" onclick="toggleSidebar()">
+            <i class="fas fa-chevron-left"></i>
+        </button>
 
-        <main class="main-content">
-            <section class="scan-section">
-                <div class="input-container">
-                    <div class="url-input-wrapper">
-                        <i class="fas fa-globe input-icon"></i>
-                        <input type="text" id="urlInput" placeholder="Enter URL to scan (e.g., https://example.com)" class="url-input">
-                        <button id="scanBtn" class="scan-button">
-                            <i class="fas fa-shield-alt"></i>
-                            Scan URL
-                        </button>
+        <div class="main-wrapper">
+            <div class="container">
+                <header class="header">
+                    <div class="logo-container">
+                        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="logo">
+                        <h1>Catch The Phish</h1>
                     </div>
-                    <div class="action-buttons">
-                        <button id="viewHistoryBtn" class="secondary-button">
-                            <i class="fas fa-history"></i>
-                            View Recent Scans
-                        </button>
-                        <button id="downloadReportBtn" class="secondary-button" disabled>
-                            <i class="fas fa-file-pdf"></i>
-                            Download Detailed Report
-                        </button> 
-                        <button id="crawlerBtn" class="crlbutton">
-                        <a href="/crawler" class="crlbutton">
-                            <i class="fas fa-spider"></i>
-                            Live crawler
-                        </a>
-                        </button>
-                    </div>
-                </div>
-            </section>
+                    <p class="subtitle">Advanced Phishing Detection & Security Analysis</p>
+                </header>
 
-            <section class="results-section" id="resultsSection" style="display: none;">
-                <div class="loading-indicator" id="loadingIndicator">
-                    <div class="spinner"></div>
-                    <p>Analyzing website security...</p>
-                </div>
-
-                <div class="results-container" id="resultsContainer" style="display: none;">
-                    <div class="verdict-card">
-                        <div class="verdict-icon" id="verdictIcon">
-                            <i class="fas fa-shield-alt"></i>
+                <main class="main-content">
+                    <section class="scan-section">
+                        <div class="input-container">
+                            <div class="url-input-wrapper">
+                                <i class="fas fa-globe input-icon"></i>
+                                <input type="text" id="urlInput" placeholder="Enter URL to scan (e.g., https://example.com)" class="url-input">
+                                <button id="scanBtn" class="scan-button">
+                                    <i class="fas fa-shield-alt"></i>
+                                    Scan URL
+                                </button>
+                            </div>
+                            <div class="bulk-scan-section">
+                                <div class="bulk-input-wrapper">
+                                    <textarea id="bulkUrlInput" placeholder="Enter multiple URLs (one per line)" class="bulk-url-input"></textarea>
+                                    <button id="bulkScanBtn" class="scan-button">
+                                        <i class="fas fa-shield-alt"></i>
+                                        Bulk Scan
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="action-buttons">
+                                <button id="viewHistoryBtn" class="secondary-button">
+                                    <i class="fas fa-history"></i>
+                                    View Recent Scans
+                                </button>
+                                <button id="downloadReportBtn" class="secondary-button" disabled>
+                                    <i class="fas fa-file-pdf"></i>
+                                    Download Detailed Report
+                                </button>
+                            </div>
                         </div>
-                        <h2 class="verdict-title" id="verdictTitle">Analysis Result</h2>
-                        <p class="verdict-text" id="verdictText">Analyzing...</p>
-                        <div class="verdict-actions">
-                            <button id="downloadReportBtnInline" class="secondary-button" disabled>
-                                <i class="fas fa-file-pdf"></i>
-                                Get Detailed Security Report
-                            </button>
+                    </section>
+
+                    <section class="results-section" id="resultsSection" style="display: none;">
+                        <div class="loading-indicator" id="loadingIndicator">
+                            <div class="spinner"></div>
+                            <p>Analyzing website security...</p>
+                        </div>
+
+                        <div class="results-container" id="resultsContainer" style="display: none;">
+                            <div class="verdict-card">
+                                <div class="verdict-icon" id="verdictIcon">
+                                    <i class="fas fa-shield-alt"></i>
+                                </div>
+                                <h2 class="verdict-title" id="verdictTitle">Analysis Result</h2>
+                                <p class="verdict-text" id="verdictText">Analyzing...</p>
+                                <div class="verdict-actions">
+                                    <button id="downloadReportBtnInline" class="secondary-button" disabled>
+                                        <i class="fas fa-file-pdf"></i>
+                                        Get Detailed Security Report
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="bulk-results-section" id="bulkResultsSection" style="display: none;">
+                        <div class="bulk-results-container" id="bulkResultsContainer">
+                            <div class="bulk-summary">
+                                <h2>Bulk Scan Results</h2>
+                                <div class="summary-stats">
+                                    <div class="stat-card">
+                                        <i class="fas fa-globe"></i>
+                                        <span id="totalScanned">0</span>
+                                        <label>Total Scanned</label>
+                                    </div>
+                                    <div class="stat-card safe">
+                                        <i class="fas fa-check-circle"></i>
+                                        <span id="safeCount">0</span>
+                                        <label>Safe URLs</label>
+                                    </div>
+                                    <div class="stat-card suspicious">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        <span id="suspiciousCount">0</span>
+                                        <label>Suspicious URLs</label>
+                                    </div>
+                                    <div class="stat-card error">
+                                        <i class="fas fa-times-circle"></i>
+                                        <span id="errorCount">0</span>
+                                        <label>Failed Scans</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="results-tabs">
+                                <button class="tab-button active" onclick="switchTab('results')">Results</button>
+                                <button class="tab-button" onclick="switchTab('errors')">Errors</button>
+                            </div>
+                            <div class="bulk-results-list" id="bulkResultsList"></div>
+                            <div class="bulk-errors-list" id="bulkErrorsList" style="display: none;"></div>
+                        </div>
+                    </section>
+
+                    <section class="history-section" id="historySection" style="display: none;">
+                        <h2>Recent Scans</h2>
+                        <div class="history-container" id="historyContainer"></div>
+                    </section>
+                </main>
+
+                <footer class="footer">
+                    <div class="footer-content">
+                        <p class="disclaimer">This tool is for educational purposes only. Always verify security manually.</p>
+                        <div class="footer-links">
+                            <a href="#" class="footer-link">Privacy Policy</a>
+                            <a href="#" class="footer-link">Terms of Service</a>
+                            <a href="#" class="footer-link">Contact</a>
                         </div>
                     </div>
-                </div>
-            </section>
-
-            <section class="history-section" id="historySection" style="display: none;">
-                <h2>Recent Scans</h2>
-                <div class="history-container" id="historyContainer"></div>
-            </section>
-        </main>
-
-        <footer class="footer">
-            <div class="footer-content">
-                <p class="disclaimer">This tool is for educational purposes only. Always verify security manually.</p>
-                <div class="footer-links">
-                    <a href="#" class="footer-link">Privacy Policy</a>
-                    <a href="#" class="footer-link">Terms of Service</a>
-                    <a href="#" class="footer-link">Contact</a>
-                </div>
+                </footer>
             </div>
-        </footer>
+        </div>
     </div>
 
     <script>
@@ -256,11 +673,131 @@
             });
         }
 
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const mainWrapper = document.querySelector('.main-wrapper');
+            const toggleBtn = document.querySelector('.toggle-sidebar');
+            const toggleIcon = toggleBtn.querySelector('i');
+
+            sidebar.classList.toggle('collapsed');
+            mainWrapper.classList.toggle('expanded');
+            toggleBtn.classList.toggle('collapsed');
+            
+            // Toggle the chevron icon
+            if (sidebar.classList.contains('collapsed')) {
+                toggleIcon.classList.remove('fa-chevron-left');
+                toggleIcon.classList.add('fa-chevron-right');
+            } else {
+                toggleIcon.classList.remove('fa-chevron-right');
+                toggleIcon.classList.add('fa-chevron-left');
+            }
+        }
+
+        function displayBulkResults(data) {
+            // Update summary stats
+            document.getElementById('totalScanned').textContent = data.total_scanned;
+            document.getElementById('safeCount').textContent = data.safe_count;
+            document.getElementById('suspiciousCount').textContent = data.suspicious_count;
+            document.getElementById('errorCount').textContent = data.failed_scans || 0;
+
+            // Display individual results
+            const resultsList = document.getElementById('bulkResultsList');
+            resultsList.innerHTML = data.results.map(result => `
+                <div class="result-item ${result.risk_score >= 40 ? 'suspicious' : 'safe'}">
+                    <div class="result-url">${result.url}</div>
+                    <div class="result-status ${result.risk_score >= 40 ? 'suspicious' : 'safe'}">
+                        <i class="fas ${result.risk_score >= 40 ? 'fa-exclamation-triangle' : 'fa-check-circle'}"></i>
+                        ${result.verdict}
+                    </div>
+                </div>
+            `).join('');
+
+            // Display errors if any
+            const errorsList = document.getElementById('bulkErrorsList');
+            if (data.errors && data.errors.length > 0) {
+                errorsList.innerHTML = data.errors.map(error => `
+                    <div class="result-item error-item">
+                        <div class="result-url">${error.url}</div>
+                        <div class="result-status error">
+                            <i class="fas fa-times-circle"></i>
+                            ${error.error}
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                errorsList.innerHTML = '<div class="no-errors">No errors occurred during scanning.</div>';
+            }
+        }
+
+        function switchTab(tab) {
+            const resultsList = document.getElementById('bulkResultsList');
+            const errorsList = document.getElementById('bulkErrorsList');
+            const buttons = document.querySelectorAll('.tab-button');
+
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            if (tab === 'results') {
+                resultsList.style.display = 'grid';
+                errorsList.style.display = 'none';
+            } else {
+                resultsList.style.display = 'none';
+                errorsList.style.display = 'grid';
+            }
+        }
+
+        function bulkScan() {
+            const urls = document.getElementById('bulkUrlInput').value
+                .split('\n')
+                .map(url => url.trim())
+                .filter(url => url);
+
+            if (urls.length === 0) {
+                alert('Please enter at least one URL');
+                return;
+            }
+
+            showLoading();
+            document.getElementById('bulkResultsSection').style.display = 'block';
+            
+            fetch('/bulk_scan', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ urls: urls })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                hideLoading();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                displayBulkResults(data);
+            })
+            .catch(error => {
+                hideLoading();
+                console.error('Error:', error);
+                document.getElementById('bulkResultsContainer').innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i>
+                        ${error.message || 'An error occurred while scanning the URLs.'}
+                    </div>
+                `;
+            });
+        }
+
         // Event Listeners
         document.getElementById('scanBtn').addEventListener('click', scanWebsite);
         document.getElementById('viewHistoryBtn').addEventListener('click', fetchData);
         document.getElementById('downloadReportBtn').addEventListener('click', downloadReport);
         document.getElementById('downloadReportBtnInline').addEventListener('click', downloadReport);
+        document.getElementById('bulkScanBtn').addEventListener('click', bulkScan);
         
         // Add enter key support for URL input
         document.getElementById('urlInput').addEventListener('keypress', function(e) {
