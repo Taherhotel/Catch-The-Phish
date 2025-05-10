@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catch The Phish</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo-container">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="logo">
+                <h1>Catch The Phish</h1>
+            </div>
+            <p class="subtitle">Advanced Phishing Detection & Security Analysis</p>
+        </header>
+
+        <main class="main-content">
+            <section class="scan-section">
+                <div class="input-container">
+                    <div class="url-input-wrapper">
+                        <i class="fas fa-globe input-icon"></i>
+                        <input type="text" id="urlInput" placeholder="Enter URL to scan (e.g., https://example.com)" class="url-input">
+                        <button id="scanBtn" class="scan-button">
+                            <i class="fas fa-shield-alt"></i>
+                            Scan URL
+                        </button>
+                    </div>
+                    <div class="action-buttons">
+                        <button id="viewHistoryBtn" class="secondary-button">
+                            <i class="fas fa-history"></i>
+                            View Recent Scans
+                        </button>
+                        <button id="downloadReportBtn" class="secondary-button" disabled>
+                            <i class="fas fa-file-pdf"></i>
+                            Download Detailed Report
+                        </button> 
+                        <button id="crawlerBtn" class="crlbutton">
+                        <a href="/crawler" class="crlbutton">
+                            <i class="fas fa-spider"></i>
+                            Live crawler
+                        </a>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="results-section" id="resultsSection" style="display: none;">
+                <div class="loading-indicator" id="loadingIndicator">
+                    <div class="spinner"></div>
+                    <p>Analyzing website security...</p>
+                </div>
+
+                <div class="results-container" id="resultsContainer" style="display: none;">
+                    <div class="verdict-card">
+                        <div class="verdict-icon" id="verdictIcon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <h2 class="verdict-title" id="verdictTitle">Analysis Result</h2>
+                        <p class="verdict-text" id="verdictText">Analyzing...</p>
+                        <div class="verdict-actions">
+                            <button id="downloadReportBtnInline" class="secondary-button" disabled>
+                                <i class="fas fa-file-pdf"></i>
+                                Get Detailed Security Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="history-section" id="historySection" style="display: none;">
+                <h2>Recent Scans</h2>
+                <div class="history-container" id="historyContainer"></div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <div class="footer-content">
+                <p class="disclaimer">This tool is for educational purposes only. Always verify security manually.</p>
+                <div class="footer-links">
+                    <a href="#" class="footer-link">Privacy Policy</a>
+                    <a href="#" class="footer-link">Terms of Service</a>
+                    <a href="#" class="footer-link">Contact</a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        function formatResult(data) {
+            if (!data) return;
+
+            const verdictIcon = document.getElementById('verdictIcon');
+            const verdictTitle = document.getElementById('verdictTitle');
+            const verdictText = document.getElementById('verdictText');
+            
+            // Update verdict display
+            if (data.risk_score >= 70) {
+                verdictIcon.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+                verdictIcon.className = 'verdict-icon high-risk';
+                verdictTitle.textContent = 'High Risk Detected!';
+                verdictText.textContent = 'This website is likely a phishing attempt. Do not proceed.';
+            } else if (data.risk_score >= 40) {
+                verdictIcon.innerHTML = '<i class="fas fa-exclamation-circle"></i>';
+                verdictIcon.className = 'verdict-icon medium-risk';
+                verdictTitle.textContent = 'Suspicious Website';
+                verdictText.textContent = 'This website shows suspicious characteristics. Proceed with caution.';
+            } else {
+                verdictIcon.innerHTML = '<i class="fas fa-check-circle"></i>';
+                verdictIcon.className = 'verdict-icon safe';
+                verdictTitle.textContent = 'Website Appears Safe';
+                verdictText.textContent = 'No obvious phishing indicators detected.';
+            }
+
+            // Enable download buttons
+            document.getElementById('downloadReportBtn').disabled = false;
+            document.getElementById('downloadReportBtnInline').disabled = false;
+        }
+
+        function showLoading() {
+            document.getElementById('loadingIndicator').style.display = 'flex';
+            document.getElementById('resultsContainer').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'block';
+            document.getElementById('historySection').style.display = 'none';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingIndicator').style.display = 'none';
+            document.getElementById('resultsContainer').style.display = 'block';
+        }
+
+        function scanWebsite() {
+            const url = document.getElementById("urlInput").value.trim();
+            
+            if (!url) {
+                alert("Please enter a URL");
+                return;
+            }
+
+            const formattedUrl = url.startsWith('http') ? url : `https://${url}`;
+            
+            showLoading();
+            
+            fetch('/index', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url: formattedUrl })
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
+                formatResult(data);
+            })
+            .catch(error => {
+                hideLoading();
+                console.error('Error:', error);
+                document.getElementById("resultsContainer").innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i>
+                        An error occurred while scanning the website.
+                    </div>
+                `;
+            });
+        }
+
+        function fetchData() {
+            showLoading();
+            document.getElementById('historySection').style.display = 'block';
+            document.getElementById('resultsSection').style.display = 'none';
+            
+            fetch('/get_data')
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
+                if (data.data && data.data.length > 0) {
+                    const html = data.data.map(item => `
+                        <div class="history-item">
+                            <div class="url">${item.url}</div>
+                            <div class="status ${item.is_phishing ? 'phishing' : 'safe'}">
+                                ${item.is_phishing ? '⚠️ Suspicious' : '✅ Safe'}
+                            </div>
+                        </div>
+                    `).join('');
+                    document.getElementById("historyContainer").innerHTML = html;
+                } else {
+                    document.getElementById("historyContainer").innerHTML = `
+                        <div class="no-data">
+                            <i class="fas fa-history"></i>
+                            No recent scans found
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                hideLoading();
+                console.error('Error:', error);
+                document.getElementById("historyContainer").innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i>
+                        Failed to fetch recent scans
+                    </div>
+                `;
+            });
+        }
+
+        function downloadReport() {
+            const url = document.getElementById('urlInput').value.trim();
+
+            if (!url) {
+                alert('Please enter a URL first.');
+                return;
+            }
+
+            const formattedUrl = url.startsWith('http') ? url : `https://${url}`;
+            
+            showLoading();
+            
+            fetch('/download_report', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url: formattedUrl })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Server error or invalid response.');
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                hideLoading();
+                const link = document.createElement('a');
+                const blobUrl = window.URL.createObjectURL(blob);
+                link.href = blobUrl;
+                link.download = "security_report.pdf";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(blobUrl);
+            })
+            .catch(error => {
+                hideLoading();
+                console.error('Error:', error);
+                document.getElementById("resultsContainer").innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i>
+                        Failed to generate report
+                    </div>
+                `;
+            });
+        }
+
+        // Event Listeners
+        document.getElementById('scanBtn').addEventListener('click', scanWebsite);
+        document.getElementById('viewHistoryBtn').addEventListener('click', fetchData);
+        document.getElementById('downloadReportBtn').addEventListener('click', downloadReport);
+        document.getElementById('downloadReportBtnInline').addEventListener('click', downloadReport);
+        
+        // Add enter key support for URL input
+        document.getElementById('urlInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                scanWebsite();
+            }
+        });
+    </script>
+</body>
+</html>

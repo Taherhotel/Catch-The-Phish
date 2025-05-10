@@ -1,0 +1,8 @@
+flask==2.0.1
+mysql-connector-python==8.0.26
+fpdf==1.7.2
+requests==2.26.0
+beautifulsoup4==4.9.3
+python-whois==0.7.3
+dnspython==2.1.0
+cryptography==3.4.7 
