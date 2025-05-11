@@ -2,6 +2,25 @@ from flask import Flask, request, jsonify, render_template, send_file
 import re
 import io
 from fpdf import FPDF
+from datetime import datetime, timedelta
+from flask_socketio import SocketIO
+import os
+import json
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+import threading
+import queue
+import time
+from pymongo import MongoClient
+from werkzeug.utils import secure_filename
+import zipfile
+import xml.etree.ElementTree as ET
+from androguard.core.bytecodes.apk import APK
+from androguard.core.bytecodes.dvm import DalvikVMFormat
+from androguard.core.analysis.analysis import Analysis
 from features_extract import (
     extract_url_features,
     extract_keyword_features,
@@ -18,20 +37,6 @@ from features_extract import (
     check_url_virustotal,
     check_google_safe_browsing
 )
-from datetime import datetime, timedelta
-from flask_socketio import SocketIO
-import os
-import json
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-import threading
-import queue
-import time
-from pymongo import MongoClient
-
 app = Flask(__name__, static_folder='static', template_folder='templates')
 socketio = SocketIO(app, cors_allowed_origins="*")
 
@@ -112,8 +117,8 @@ def index():
             "dns_record_count": get_dns_record_count(url),
             "check_spf_dmarc": check_spf_dmarc(url),
             "is_shortened_url": is_shortened_url(url),
-            'virus_total': check_url_virustotal(url),
-            'google_safe_browsing': check_google_safe_browsing(url)
+            "virus_total": check_url_virustotal(url),
+            "google_safe_browsing": check_google_safe_browsing(url)
         }
 
         # Calculate risk score
@@ -146,8 +151,8 @@ def index():
         return jsonify({
             "url": url,
             "features": features,
-            'risk_score': risk_score,
-            'verdict': (
+            "risk_score": risk_score,
+            "verdict": (
                 "Highly suspicious ⚠" if risk_score >= 70 else
                 "Moderately suspicious ⚠" if risk_score >= 40 else
                 "Likely safe ✅ (Still verify manually)"
@@ -637,9 +642,168 @@ def background_processor():
         except queue.Empty:
             time.sleep(0.1)
 
+# Add this to your existing configuration
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'apk'}
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Create uploads folder if it doesn't exist
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/apk_analyzer')
+def apk_analyzer():
+    return render_template('apk_analyzer.html')
+
+@app.route('/analyze_apk', methods=['POST'])
+def analyze_apk():
+    print("APK analysis request received")
+    if 'apk' not in request.files:
+        print("No file part in request")
+        return jsonify({'error': 'No file part'}), 400
+    
+    file = request.files['apk']
+    if file.filename == '':
+        print("No selected file")
+        return jsonify({'error': 'No selected file'}), 400
+    
+    print(f"Received file: {file.filename}")
+    
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        print(f"Saving file to: {filepath}")
+        file.save(filepath)
+        
+        try:
+            print("Starting APK analysis")
+            # Analyze APK
+            a = APK(filepath)
+            print("APK loaded successfully")
+            d = DalvikVMFormat(a.get_dex())
+            dx = Analysis(d)
+            print("DEX analysis completed")
+            
+            # Basic Information
+            basic_info = {
+                'Package Name': a.get_package(),
+                'Version Name': a.get_androidversion_name(),
+                'Version Code': a.get_androidversion_code(),
+                'Min SDK': a.get_min_sdk_version(),
+                'Target SDK': a.get_target_sdk_version(),
+                'Permissions': len(a.get_permissions())
+            }
+            print(f"Basic info extracted: {basic_info}")
+            
+            # Permissions
+            permissions = a.get_permissions()
+            print(f"Found {len(permissions)} permissions")
+            
+            # Security Analysis
+            security_analysis = []
+            
+            # Check for dangerous permissions
+            dangerous_permissions = [
+                'android.permission.READ_SMS',
+                'android.permission.SEND_SMS',
+                'android.permission.READ_CONTACTS',
+                'android.permission.ACCESS_FINE_LOCATION',
+                'android.permission.CAMERA',
+                'android.permission.RECORD_AUDIO'
+            ]
+            
+            for perm in dangerous_permissions:
+                if perm in permissions:
+                    security_analysis.append(f"Uses dangerous permission: {perm}")
+            
+            # Check for network security
+            if 'android.permission.INTERNET' in permissions:
+                security_analysis.append("App has internet access")
+            
+            # Check for backup and debuggable using manifest XML
+            manifest = a.get_android_manifest_xml()
+            if manifest is not None:
+                # Register the android namespace
+                ET.register_namespace('android', 'http://schemas.android.com/apk/res/android')
+                
+                # Check for backup
+                backup_elem = manifest.find(".//application[@android:allowBackup='true']", 
+                                         namespaces={'android': 'http://schemas.android.com/apk/res/android'})
+                if backup_elem is not None:
+                    security_analysis.append("App allows backup (potential security risk)")
+                
+                # Check for debuggable
+                debug_elem = manifest.find(".//application[@android:debuggable='true']",
+                                        namespaces={'android': 'http://schemas.android.com/apk/res/android'})
+                if debug_elem is not None:
+                    security_analysis.append("App is debuggable (security risk)")
+            
+            # Potential Risks
+            risks = []
+            
+            # Check for suspicious activities
+            suspicious_activities = [
+                'android.intent.action.SEND',
+                'android.intent.action.VIEW',
+                'android.intent.action.EDIT'
+            ]
+            
+            for activity in a.get_activities():
+                for sus_act in suspicious_activities:
+                    if sus_act in activity:
+                        risks.append(f"Suspicious activity found: {activity}")
+            
+            # Check for native code
+            if a.get_libraries():
+                risks.append("App contains native code (potential security risk)")
+            
+            # Additional security checks
+            try:
+                # Check for exported activities
+                exported_activities = a.get_exported_activities()
+                if exported_activities:
+                    security_analysis.append(f"App has {len(exported_activities)} exported activities")
+                
+                # Check for exported services
+                exported_services = a.get_exported_services()
+                if exported_services:
+                    security_analysis.append(f"App has {len(exported_services)} exported services")
+                
+                # Check for exported receivers
+                exported_receivers = a.get_exported_receivers()
+                if exported_receivers:
+                    security_analysis.append(f"App has {len(exported_receivers)} exported receivers")
+            except:
+                pass  # Skip if methods not available
+            
+            print("Analysis completed, cleaning up")
+            # Clean up
+            os.remove(filepath)
+            
+            result = {
+                'basic_info': basic_info,
+                'permissions': permissions,
+                'security_analysis': security_analysis,
+                'risks': risks
+            }
+            print(f"Returning result: {result}")
+            return jsonify(result)
+            
+        except Exception as e:
+            print(f"Error during APK analysis: {str(e)}")
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            return jsonify({'error': str(e)}), 500
+    
+    print("Invalid file type")
+    return jsonify({'error': 'Invalid file type'}), 400
+    
 if __name__ == '__main__':
     # Start background processor
     processor_thread = threading.Thread(target=background_processor, daemon=True)
     processor_thread.start()
     
-    socketio.run(app, debug=True)
+    socketio.run(app, host='0.0.0.0', port=8080, debug=True)

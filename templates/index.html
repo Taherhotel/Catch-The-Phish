@@ -351,7 +351,7 @@
     <div class="layout-container">
         <aside class="sidebar">
             <div class="sidebar-logo">
-                <h2>Navigation</h2>
+                <h2>Phish Arena</h2>
             </div>
             <ul class="sidebar-menu">
                 <li>
@@ -377,6 +377,16 @@
                         <i class="fas fa-spider"></i>
                         <span>Live Crawler</span>
                     </a>
+                </li>
+                <li>
+                    <a href="/learn" class="nav-link">
+                        <i class="fas fa-book"></i>
+                        <span>Learn</span>
+                    </a>
+                    <a href="/apk_analyzer" class="nav-link">
+                        <i class="fas fa-mobile-alt"></i>
+                        <span>APK Analyzer</span>
+                    </a> 
                 </li>
             </ul>
         </aside>
@@ -551,7 +561,7 @@
 
         function scanWebsite() {
             const url = document.getElementById("urlInput").value.trim();
-            
+
             if (!url) {
                 alert("Please enter a URL");
                 return;
@@ -560,7 +570,7 @@
             const formattedUrl = url.startsWith('http') ? url : `https://${url}`;
             
             showLoading();
-            
+
             fetch('/index', {
                 method: 'POST',
                 headers: {
