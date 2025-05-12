@@ -37,12 +37,15 @@ from features_extract import (
     check_url_virustotal,
     check_google_safe_browsing
 )
+import PyPDF2
+import fitz  # PyMuPDF
+
 app = Flask(__name__, static_folder='static', template_folder='templates')
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # MongoDB connection
 try:
-    client = MongoClient('mongodb://localhost:27017/')
+    client = MongoClient('mongodb://localhost:27018/')
     db = client['phishing_detection']
 except Exception as e:
     print(f"Error connecting to MongoDB: {e}")
@@ -121,7 +124,7 @@ def index():
             "google_safe_browsing": check_google_safe_browsing(url)
         }
 
-        # Calculate risk score
+                # Calculate risk score
         risk_score = calculate_risk_score(analyze_url(url))
         is_phishing = risk_score >= 40
 
@@ -551,45 +554,47 @@ def bulk_scan():
 
         results = []
         errors = []
-        
         for url in urls:
             try:
                 # Validate URL format
                 if not url.startswith(('http://', 'https://')):
                     url = f'https://{url}'
+            except Exception as e:
+                errors.append(f"Error processing URL {url}: {str(e)}")
+                continue
 
-                # Extract features
-                features = {
-                    "url_features": extract_url_features(url),
-                    "keyword_features": extract_keyword_features(url),
-                    "content_features": extract_content_features(url),
-                    "domain_features": extract_domain_features(url),
-                    "redirection_count": extract_redirection_count(url),
-                    "certificate_info": get_certificate_info(url),
-                    "domain_age": get_domain_age(url),
-                    "dns_record_count": get_dns_record_count(url),
-                    "check_spf_dmarc": check_spf_dmarc(url),
-                    "is_shortened_url": is_shortened_url(url),
+        # Extract features
+        features = {
+            "url_features": extract_url_features(url),
+            "keyword_features": extract_keyword_features(url),
+            "content_features": extract_content_features(url),
+            "domain_features": extract_domain_features(url),
+            "redirection_count": extract_redirection_count(url),
+            "certificate_info": get_certificate_info(url),
+            "domain_age": get_domain_age(url),
+            "dns_record_count": get_dns_record_count(url),
+            "check_spf_dmarc": check_spf_dmarc(url),
+            "is_shortened_url": is_shortened_url(url),
                     'virus_total': check_url_virustotal(url),
                     'google_safe_browsing': check_google_safe_browsing(url)
                 }
 
                 # Calculate risk score
-                risk_score = calculate_risk_score(analyze_url(url))
-                is_phishing = risk_score >= 40
+        risk_score = calculate_risk_score(analyze_url(url))
+        is_phishing = risk_score >= 40
 
                 # Store in mock database with timestamp
-                scan_result = {
+        scan_result = {
                     "url": url,
                     "title": url,
                     "is_phishing": is_phishing,
                     "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     "risk_score": risk_score
                 }
-                mock_db.append(scan_result)
+        mock_db.append(scan_result)
 
                 # If MongoDB is available, store there too
-                if db is not None:
+        if db is not None:
                     try:
                         db.bank_websites.insert_one({
                             "url": url,
@@ -601,7 +606,7 @@ def bulk_scan():
                     except Exception as e:
                         print(f"Error storing in MongoDB: {e}")
 
-                results.append({
+        results.append({
                     "url": url,
                     "features": features,
                     'risk_score': risk_score,
@@ -611,9 +616,9 @@ def bulk_scan():
                         "Likely safe ✅ (Still verify manually)"
                     )
                 })
-            except Exception as e:
-                print(f"Error processing URL {url}: {str(e)}")
-                errors.append({
+    except Exception as e:
+        print(f"Error processing URL {url}: {str(e)}")
+        errors.append({
                     "url": url,
                     "error": str(e)
                 })
@@ -644,7 +649,7 @@ def background_processor():
 
 # Add this to your existing configuration
 UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'apk'}
+ALLOWED_EXTENSIONS = {'apk', 'pdf'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
@@ -801,6 +806,130 @@ def analyze_apk():
     print("Invalid file type")
     return jsonify({'error': 'Invalid file type'}), 400
     
+@app.route('/pdf_analyzer')
+def pdf_analyzer():
+    return render_template('pdf_analyzer.html')
+
+@app.route('/analyze_pdf', methods=['POST'])
+def analyze_pdf():
+    print("PDF analysis request received")
+    if 'pdf' not in request.files:
+        print("No file part in request")
+        return jsonify({'error': 'No file part'}), 400
+    
+    file = request.files['pdf']
+    if file.filename == '':
+        print("No selected file")
+        return jsonify({'error': 'No selected file'}), 400
+    
+    print(f"Received file: {file.filename}")
+    
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        print(f"Saving file to: {filepath}")
+        file.save(filepath)
+        
+        try:
+            print("Starting PDF analysis")
+            results = {
+                'basic_info': {},
+                'security_analysis': [],
+                'risks': [],
+                'javascript': [],
+                'actions': [],
+                'metadata': {}
+            }
+            
+            # Basic Information using PyPDF2
+            with open(filepath, 'rb') as pdf_file:
+                pdf_reader = PyPDF2.PdfReader(pdf_file)
+                
+                results['basic_info'] = {
+                    'Pages': len(pdf_reader.pages),
+                    'Encrypted': pdf_reader.is_encrypted,
+                    'File Size': f"{os.path.getsize(filepath) / 1024:.2f} KB"
+                }
+                
+                # Extract metadata
+                if pdf_reader.metadata:
+                    results['metadata'] = {
+                        'Title': pdf_reader.metadata.get('/Title', 'N/A'),
+                        'Author': pdf_reader.metadata.get('/Author', 'N/A'),
+                        'Creator': pdf_reader.metadata.get('/Creator', 'N/A'),
+                        'Producer': pdf_reader.metadata.get('/Producer', 'N/A'),
+                        'Creation Date': pdf_reader.metadata.get('/CreationDate', 'N/A')
+                    }
+            
+            # Detailed Analysis using PyMuPDF
+            doc = fitz.open(filepath)
+            
+            # Check for JavaScript
+            for page in doc:
+                try:
+                    # Get JavaScript actions
+                    js_actions = page.get_js_actions()
+                    if js_actions:
+                        results['javascript'].append(f"Page {page.number + 1} contains JavaScript")
+                except Exception as e:
+                    print(f"Error checking JavaScript on page {page.number + 1}: {str(e)}")
+            
+            # Check for actions and links
+            for page in doc:
+                for link in page.get_links():
+                    if link['kind'] == fitz.LINK_URI:
+                        results['actions'].append(f"Page {page.number + 1}: External link to {link['uri']}")
+                    elif link['kind'] == fitz.LINK_LAUNCH:
+                        results['actions'].append(f"Page {page.number + 1}: Launch action found")
+                    elif link['kind'] == fitz.LINK_GOTOR:
+                        results['actions'].append(f"Page {page.number + 1}: Go-to action found")
+            
+            # Security Analysis
+            if results['javascript']:
+                results['security_analysis'].append("Document contains JavaScript (potential security risk)")
+            
+            if results['actions']:
+                results['security_analysis'].append("Document contains interactive elements")
+            
+            if doc.is_encrypted:
+                results['security_analysis'].append("Document is encrypted")
+            
+            # Check for embedded files
+            for page in doc:
+                for annot in page.annots():
+                    if annot.type[0] == 15:  # File attachment
+                        results['security_analysis'].append(f"Page {page.number + 1}: Contains embedded file")
+            
+            # Check for forms
+            if doc.is_form_pdf:
+                results['security_analysis'].append("Document contains form fields")
+            
+            # Potential Risks
+            if len(results['actions']) > 0:
+                results['risks'].append("Document contains interactive elements that could be malicious")
+            
+            if len(results['javascript']) > 0:
+                results['risks'].append("Document contains JavaScript that could be malicious")
+            
+            if doc.is_encrypted:
+                results['risks'].append("Encrypted document could contain hidden content")
+            
+            # Clean up
+            doc.close()
+            os.remove(filepath)
+            
+            print(f"Analysis completed: {results}")
+            return jsonify(results)
+            
+        except Exception as e:
+            print(f"Error during PDF analysis: {str(e)}")
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            return jsonify({'error': str(e)}), 500
+    
+    print("Invalid file type")
+    return jsonify({'error': 'Invalid file type'}), 400
+
 if __name__ == '__main__':
     # Start background processor
     processor_thread = threading.Thread(target=background_processor, daemon=True)
