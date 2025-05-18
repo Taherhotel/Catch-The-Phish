@@ -17,6 +17,8 @@ import time
 from pymongo import MongoClient
 from werkzeug.utils import secure_filename
 import zipfile
+import PyPDF2
+import fitz  # PyMuPDF
 import xml.etree.ElementTree as ET
 from androguard.core.bytecodes.apk import APK
 from androguard.core.bytecodes.dvm import DalvikVMFormat
@@ -37,11 +39,24 @@ from features_extract import (
     check_url_virustotal,
     check_google_safe_browsing
 )
-import PyPDF2
-import fitz  # PyMuPDF
+import concurrent.futures
+from functools import partial, lru_cache
+from urllib.parse import urlparse
+import sqlite3
+from contextlib import contextmanager
+
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+@contextmanager
+def get_db_connection():
+    try:
+        client = MongoClient('mongodb://localhost:27018/')
+        db = client['phishing_detection']
+        yield db
+    finally:
+        client.close()
 
 # MongoDB connection
 try:
@@ -108,30 +123,41 @@ def index():
         if not url:
             return jsonify({"error": "URL is missing."}), 400
 
-        # Extract features
-        features = {
-            "url_features": extract_url_features(url),
-            "keyword_features": extract_keyword_features(url),
-            "content_features": extract_content_features(url),
-            "domain_features": extract_domain_features(url),
-            "redirection_count": extract_redirection_count(url),
-            "certificate_info": get_certificate_info(url),
-            "domain_age": get_domain_age(url),
-            "dns_record_count": get_dns_record_count(url),
-            "check_spf_dmarc": check_spf_dmarc(url),
-            "is_shortened_url": is_shortened_url(url),
-            "virus_total": check_url_virustotal(url),
-            "google_safe_browsing": check_google_safe_browsing(url)
-        }
+        # Extract features in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            # Submit all feature extraction tasks
+            futures = {
+                'url_features': executor.submit(extract_url_features, url),
+                'keyword_features': executor.submit(extract_keyword_features, url),
+                'content_features': executor.submit(extract_content_features, url),
+                'domain_features': executor.submit(extract_domain_features, url),
+                'redirection_count': executor.submit(extract_redirection_count, url),
+                'certificate_info': executor.submit(get_certificate_info, url),
+                'domain_age': executor.submit(get_domain_age, url),
+                'dns_record_count': executor.submit(get_dns_record_count, url),
+                'check_spf_dmarc': executor.submit(check_spf_dmarc, url),
+                'is_shortened_url': executor.submit(is_shortened_url, url),
+                'virus_total': executor.submit(check_url_virustotal, url),
+                'google_safe_browsing': executor.submit(check_google_safe_browsing, url)
+            }
+            
+            # Collect results as they complete
+            features = {}
+            for key, future in futures.items():
+                try:
+                    features[key] = future.result(timeout=10)  # 10 second timeout per feature
+                except Exception as e:
+                    print(f"Error extracting {key}: {str(e)}")
+                    features[key] = None
 
-                # Calculate risk score
+        # Calculate risk score
         risk_score = calculate_risk_score(analyze_url(url))
         is_phishing = risk_score >= 40
 
         # Store in mock database with timestamp
         scan_result = {
             "url": url,
-            "title": url,  # Using URL as title for mock
+            "title": url,
             "is_phishing": is_phishing,
             "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             "risk_score": risk_score
@@ -388,6 +414,35 @@ def download_report():
 def crawler():
     return render_template('crawler.html')
 
+def check_content(url):
+    try:
+        return {
+            'content_length': 0,  # Example result
+            'has_forms': False,   # Example result
+            'has_javascript': False  # Example result
+        }
+    except Exception as e:
+        print(f"Error checking content for {url}: {str(e)}")
+        return {}
+
+def analyze_url_parallel(url):
+    try:
+        features = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            # Run DNS, SSL, and content checks in parallel
+            dns_future = executor.submit(check_dns, url)
+            ssl_future = executor.submit(check_ssl, url)
+            content_future = executor.submit(check_content, url)
+            
+            features.update(dns_future.result())
+            features.update(ssl_future.result())
+            features.update(content_future.result())
+        
+        return features
+    except Exception as e:
+        print(f"Error analyzing URL {url}: {str(e)}")
+        return {}
+
 @app.route('/extract_features', methods=['POST'])
 def extract_features():
     data = request.json
@@ -396,12 +451,16 @@ def extract_features():
     content = data.get('content', '')
     is_phishing = data.get('is_phishing', '0')
     
+    # Use parallel processing for URL analysis
+    features = analyze_url_parallel(url)
+    
     # Store the result in the queue
     crawl_results.put({
         'url': url,
         'title': title,
         'is_phishing': is_phishing,
-        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'features': features
     })
     
     # Emit the result via WebSocket
@@ -409,7 +468,8 @@ def extract_features():
         'url': url,
         'title': title,
         'is_phishing': is_phishing,
-        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'features': features
     })
     
     return jsonify({'status': 'success'})
@@ -554,74 +614,26 @@ def bulk_scan():
 
         results = []
         errors = []
-        for url in urls:
-            try:
-                # Validate URL format
+
+        # Process URLs in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            # Create a list of futures for each URL
+            futures = []
+            for url in urls:
                 if not url.startswith(('http://', 'https://')):
                     url = f'https://{url}'
-            except Exception as e:
-                errors.append(f"Error processing URL {url}: {str(e)}")
-                continue
+                futures.append(executor.submit(process_url, url))
 
-        # Extract features
-        features = {
-            "url_features": extract_url_features(url),
-            "keyword_features": extract_keyword_features(url),
-            "content_features": extract_content_features(url),
-            "domain_features": extract_domain_features(url),
-            "redirection_count": extract_redirection_count(url),
-            "certificate_info": get_certificate_info(url),
-            "domain_age": get_domain_age(url),
-            "dns_record_count": get_dns_record_count(url),
-            "check_spf_dmarc": check_spf_dmarc(url),
-            "is_shortened_url": is_shortened_url(url),
-                    'virus_total': check_url_virustotal(url),
-                    'google_safe_browsing': check_google_safe_browsing(url)
-                }
-
-                # Calculate risk score
-        risk_score = calculate_risk_score(analyze_url(url))
-        is_phishing = risk_score >= 40
-
-                # Store in mock database with timestamp
-        scan_result = {
-                    "url": url,
-                    "title": url,
-                    "is_phishing": is_phishing,
-                    "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    "risk_score": risk_score
-                }
-        mock_db.append(scan_result)
-
-                # If MongoDB is available, store there too
-        if db is not None:
-                    try:
-                        db.bank_websites.insert_one({
-                            "url": url,
-                            "title": url,
-                            "is_phishing": "1" if is_phishing else "0",
-                            "crawled_at": datetime.now(),
-                            "confidence_score": risk_score
-                        })
-                    except Exception as e:
-                        print(f"Error storing in MongoDB: {e}")
-
-        results.append({
-                    "url": url,
-                    "features": features,
-                    'risk_score': risk_score,
-                    'verdict': (
-                        "Highly suspicious ⚠" if risk_score >= 70 else
-                        "Moderately suspicious ⚠" if risk_score >= 40 else
-                        "Likely safe ✅ (Still verify manually)"
-                    )
-                })
-    except Exception as e:
-        print(f"Error processing URL {url}: {str(e)}")
-        errors.append({
-                    "url": url,
-                    "error": str(e)
-                })
+            # Process results as they complete
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    result = future.result()
+                    if "error" in result:
+                        errors.append(result)
+                    else:
+                        results.append(result)
+                except Exception as e:
+                    errors.append({"url": url, "error": str(e)})
 
         return jsonify({
             "results": results,
@@ -637,15 +649,114 @@ def bulk_scan():
         print(f"Bulk scan error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+def process_url(url):
+    try:
+        # Extract features in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {
+                'url_features': executor.submit(extract_url_features, url),
+                'keyword_features': executor.submit(extract_keyword_features, url),
+                'content_features': executor.submit(extract_content_features, url),
+                'domain_features': executor.submit(extract_domain_features, url),
+                'redirection_count': executor.submit(extract_redirection_count, url),
+                'certificate_info': executor.submit(get_certificate_info, url),
+                'domain_age': executor.submit(get_domain_age, url),
+                'dns_record_count': executor.submit(get_dns_record_count, url),
+                'check_spf_dmarc': executor.submit(check_spf_dmarc, url),
+                'is_shortened_url': executor.submit(is_shortened_url, url),
+                'virus_total': executor.submit(check_url_virustotal, url),
+                'google_safe_browsing': executor.submit(check_google_safe_browsing, url)
+            }
+            
+            features = {}
+            for key, future in futures.items():
+                try:
+                    features[key] = future.result(timeout=10)
+                except Exception as e:
+                    print(f"Error extracting {key} for {url}: {str(e)}")
+                    features[key] = None
+
+        # Calculate risk score
+        risk_score = calculate_risk_score(analyze_url(url))
+        is_phishing = risk_score >= 40
+
+        # Store in mock database
+        mock_db.append({
+            "url": url,
+            "title": url,
+            "is_phishing": is_phishing,
+            "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            "risk_score": risk_score
+        })
+
+        # Store in MongoDB if available
+        if db is not None:
+            try:
+                db.bank_websites.insert_one({
+                    "url": url,
+                    "title": url,
+                    "is_phishing": "1" if is_phishing else "0",
+                    "crawled_at": datetime.now(),
+                    "confidence_score": risk_score
+                })
+            except Exception as e:
+                print(f"Error storing in MongoDB: {e}")
+
+        return {
+            "url": url,
+            "features": features,
+            "risk_score": risk_score,
+            "verdict": (
+                "Highly suspicious ⚠" if risk_score >= 70 else
+                "Moderately suspicious ⚠" if risk_score >= 40 else
+                "Likely safe ✅ (Still verify manually)"
+            )
+        }
+    except Exception as e:
+        return {"url": url, "error": str(e)}
+
 def background_processor():
-    """Background task to process crawl results"""
+    batch_size = 10
+    batch = []
+    
     while True:
         try:
+            # Get result from queue with timeout
             result = crawl_results.get(timeout=1)
-            # Process result if needed
-            crawl_results.task_done()
+            batch.append(result)
+            
+            # Process batch if it reaches the size limit
+            if len(batch) >= batch_size:
+                process_batch(batch)
+                batch = []
+                
         except queue.Empty:
+            # Process any remaining items in batch
+            if batch:
+                process_batch(batch)
+                batch = []
             time.sleep(0.1)
+        except Exception as e:
+            print(f"Error in background processor: {str(e)}")
+            time.sleep(1)
+
+def process_batch(batch):
+    try:
+        with get_db_connection() as db:
+            # Convert batch to MongoDB documents
+            documents = [{
+                'url': item['url'],
+                'title': item['title'],
+                'is_phishing': item['is_phishing'],
+                'timestamp': item['timestamp']
+            } for item in batch]
+            
+            # Batch insert into MongoDB
+            if documents:
+                db.bank_websites.insert_many(documents)
+            
+    except Exception as e:
+        print(f"Error processing batch: {str(e)}")
 
 # Add this to your existing configuration
 UPLOAD_FOLDER = 'uploads'
@@ -930,9 +1041,47 @@ def analyze_pdf():
     print("Invalid file type")
     return jsonify({'error': 'Invalid file type'}), 400
 
+# Cache DNS results for 1 hour
+@lru_cache(maxsize=1000)
+def check_dns(url):
+    try:
+        domain = urlparse(url).netloc
+        # Your existing DNS check code
+        return {
+            'dns_record': True,  # Example result
+            'dns_age': 0  # Example result
+        }
+    except Exception as e:
+        print(f"Error checking DNS for {url}: {str(e)}")
+        return {'dns_record': False, 'dns_age': 0}
+
+# Cache SSL results for 1 hour
+@lru_cache(maxsize=1000)
+def check_ssl(url):
+    try:
+        # Your existing SSL check code
+        return {
+            'ssl_verified': True,  # Example result
+            'ssl_age': 0  # Example result
+        }
+    except Exception as e:
+        print(f"Error checking SSL for {url}: {str(e)}")
+        return {'ssl_verified': False, 'ssl_age': 0}
+
+# Clear cache periodically
+def clear_cache():
+    while True:
+        time.sleep(3600)  # Clear cache every hour
+        check_dns.cache_clear()
+        check_ssl.cache_clear()
+
+# Start cache clearing thread
+cache_thread = threading.Thread(target=clear_cache, daemon=True)
+cache_thread.start()
+
 if __name__ == '__main__':
     # Start background processor
     processor_thread = threading.Thread(target=background_processor, daemon=True)
     processor_thread.start()
     
-    socketio.run(app, host='0.0.0.0', port=8080, debug=True)
+    socketio.run(app, host='127.0.0.1', port=5000, debug=True)
