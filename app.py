@@ -651,7 +651,31 @@ def bulk_scan():
 
 def process_url(url):
     try:
-        # Extract features in parallel
+        # Check if URL points to a file
+        file_extensions = ['.pdf', '.doc', '.docx', '.txt', '.xls', '.xlsx', '.zip', '.rar']
+        is_file_url = any(url.lower().endswith(ext) for ext in file_extensions)
+        
+        if is_file_url:
+            return {
+                "url": url,
+                "features": {
+                    "url_features": {"is_file_url": True, "file_type": url.split('.')[-1].lower()},
+                    "content_features": None,
+                    "domain_features": None,
+                    "redirection_count": 0,
+                    "certificate_info": None,
+                    "domain_age": None,
+                    "dns_record_count": 0,
+                    "check_spf_dmarc": None,
+                    "is_shortened_url": False,
+                    "virus_total": None,
+                    "google_safe_browsing": None
+                },
+                "risk_score": 30,  # Moderate risk for direct file downloads
+                "verdict": "Direct file URL ⚠ (Verify source before downloading)"
+            }
+
+        # Extract features in parallel for non-file URLs
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures = {
                 'url_features': executor.submit(extract_url_features, url),
