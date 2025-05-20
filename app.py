@@ -474,10 +474,99 @@ def extract_features():
     
     return jsonify({'status': 'success'})
 
+def get_cached_result(url):
+    """Get cached scan result from database if available"""
+    try:
+        # Check MongoDB first
+        if db is not None:
+            cached_result = db.bank_websites.find_one({"url": url})
+            if cached_result:
+                return {
+                    "url": url,
+                    "features": {
+                        "url_features": None,
+                        "content_features": None,
+                        "domain_features": None,
+                        "redirection_count": None,
+                        "certificate_info": None,
+                        "domain_age": None,
+                        "dns_record_count": None,
+                        "check_spf_dmarc": None,
+                        "is_shortened_url": None,
+                        "virus_total": None,
+                        "google_safe_browsing": None
+                    },
+                    "risk_score": cached_result.get("confidence_score", 0),
+                    "verdict": (
+                        "Highly suspicious ⚠" if cached_result.get("confidence_score", 0) >= 70 else
+                        "Moderately suspicious ⚠" if cached_result.get("confidence_score", 0) >= 40 else
+                        "Likely safe ✅ (Still verify manually)"
+                    ),
+                    "cached": True,
+                    "cached_at": cached_result.get("crawled_at", datetime.now()).strftime('%Y-%m-%d %H:%M:%S')
+                }
+        
+        # Check mock database if MongoDB is not available
+        for entry in mock_db:
+            if entry["url"] == url:
+                return {
+                    "url": url,
+                    "features": {
+                        "url_features": None,
+                        "content_features": None,
+                        "domain_features": None,
+                        "redirection_count": None,
+                        "certificate_info": None,
+                        "domain_age": None,
+                        "dns_record_count": None,
+                        "check_spf_dmarc": None,
+                        "is_shortened_url": None,
+                        "virus_total": None,
+                        "google_safe_browsing": None
+                    },
+                    "risk_score": entry.get("risk_score", 0),
+                    "verdict": (
+                        "Highly suspicious ⚠" if entry.get("risk_score", 0) >= 70 else
+                        "Moderately suspicious ⚠" if entry.get("risk_score", 0) >= 40 else
+                        "Likely safe ✅ (Still verify manually)"
+                    ),
+                    "cached": True,
+                    "cached_at": entry.get("timestamp", datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                }
+        
+        return None
+    except Exception as e:
+        print(f"Error checking cache: {str(e)}")
+        return None
+
 @app.route('/scan', methods=['POST'])
 def scan():
-    # ... existing scan code ...
-    pass
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided."}), 400
+
+        url = data.get("url", "")
+        if not url:
+            return jsonify({"error": "No URL provided."}), 400
+
+        if not url.startswith(('http://', 'https://')):
+            url = f'https://{url}'
+
+        # Check for cached result first
+        cached_result = get_cached_result(url)
+        if cached_result:
+            return jsonify(cached_result)
+
+        # If no cached result, proceed with scanning
+        result = process_url(url)
+        if "error" in result:
+            return jsonify(result), 500
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"Scan error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/dashboard')
 def dashboard():
@@ -614,6 +703,7 @@ def bulk_scan():
 
         results = []
         errors = []
+        cached_count = 0
 
         # Process URLs in parallel
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
@@ -622,6 +712,14 @@ def bulk_scan():
             for url in urls:
                 if not url.startswith(('http://', 'https://')):
                     url = f'https://{url}'
+                
+                # Check cache first
+                cached_result = get_cached_result(url)
+                if cached_result:
+                    results.append(cached_result)
+                    cached_count += 1
+                    continue
+                
                 futures.append(executor.submit(process_url, url))
 
             # Process results as they complete
@@ -641,6 +739,8 @@ def bulk_scan():
             "total_scanned": len(urls),
             "successful_scans": len(results),
             "failed_scans": len(errors),
+            "cached_results": cached_count,
+            "new_scans": len(results) - cached_count,
             "suspicious_count": sum(1 for r in results if r['risk_score'] >= 40),
             "safe_count": sum(1 for r in results if r['risk_score'] < 40)
         })
