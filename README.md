@@ -1,77 +1,77 @@
 🎣 Catch The Phish
 
-AI-Powered Phishing Detection System
+An AI-powered phishing detection system that analyzes URLs, website content, and threat intelligence to identify potentially malicious websites.
 
-Catch The Phish is an intelligent phishing detection system that combines Machine Learning, web crawling, URL analysis, and threat intelligence to identify potentially malicious websites and URLs.
+Catch The Phish is a cybersecurity project built to detect phishing URLs using a combination of Machine Learning, URL feature extraction, web crawling, and real-time threat intelligence.
 
-The project is designed to analyze URLs using multiple security signals rather than relying on a single indicator—helping detect phishing attempts through both static analysis and real-time threat intelligence.
+The system goes beyond simple blacklist checking by analyzing multiple indicators associated with phishing attacks and combining them to help identify suspicious or malicious websites.
 
 ⸻
 
 🚨 The Problem
 
-Phishing remains one of the most common cybersecurity threats, with attackers creating deceptive URLs and websites designed to steal credentials and sensitive information.
+Phishing websites are designed to impersonate legitimate services and trick users into revealing sensitive information such as passwords, banking details, and personal data.
 
-Traditional blacklist-based approaches can struggle to identify new or previously unseen phishing websites. Catch The Phish aims to address this challenge by combining AI/ML-based detection with real-time security intelligence.
+Many phishing websites are short-lived and constantly changing, making it difficult for traditional detection methods to identify previously unseen threats.
 
-⸻
-
-🧠 How It Works
-
-User URL
-   │
-   ▼
-URL & Website Analysis
-   │
-   ├── 🔍 Feature Extraction
-   ├── 🕷️ Content Analysis & Web Crawling
-   ├── 🤖 ML Classification
-   └── 🛡️ Threat Intelligence Checks
-          │
-          ▼
-   Phishing Risk Assessment
-          │
-          ▼
-     Safe / Suspicious / Malicious
-
-The system analyzes multiple characteristics of a URL and website before generating a phishing assessment.
+Catch The Phish explores how AI/ML and cybersecurity techniques can work together to detect these threats through automated analysis.
 
 ⸻
 
-✨ Key Features
+🔍 How It Works
 
-* 🤖 AI/ML-Based Detection — Uses machine learning classifiers to identify phishing URLs based on extracted features.
-* 🔗 URL Feature Extraction — Analyzes URL characteristics and patterns associated with malicious websites.
-* 🕷️ Dynamic Web Crawling — Examines website content to gather additional indicators for analysis.
-* 🛡️ Threat Intelligence Integration — Leverages VirusTotal and AbuseIPDB to enrich detection with external security intelligence.
-* ⚡ Static & Real-Time Analysis — Designed to work with both pre-existing datasets and live URL analysis.
-* 🌐 Web-Based Interface — Provides an accessible interface for users to analyze potentially suspicious links.
+                         ┌─────────────────┐
+                         │   Input URL     │
+                         └────────┬────────┘
+                                  │
+                                  ▼
+                    ┌─────────────────────────┐
+                    │   URL & Content Analysis │
+                    └────────────┬────────────┘
+                                 │
+              ┌──────────────────┼──────────────────┐
+              ▼                  ▼                  ▼
+       ┌──────────────┐   ┌──────────────┐  ┌───────────────┐
+       │ URL Features │   │ Web Crawling │  │ Threat Intel  │
+       └──────┬───────┘   └──────┬───────┘  └───────┬───────┘
+              │                  │                  │
+              └──────────────────┼──────────────────┘
+                                 ▼
+                       ┌──────────────────┐
+                       │  ML Classifier   │
+                       └────────┬─────────┘
+                                │
+                                ▼
+                    ┌───────────────────────┐
+                    │ Phishing Risk Result  │
+                    └───────────────────────┘
+
+⸻
+
+✨ Features
+
+* 🤖 Machine Learning-Based Detection
+    Uses ML classifiers to identify patterns commonly associated with phishing URLs.
+* 🔗 URL Feature Extraction
+    Extracts and analyzes characteristics from URLs to identify suspicious patterns.
+* 🕷️ Website Content Analysis
+    Crawls and analyzes website content to gather additional indicators for detection.
+* 🛡️ Threat Intelligence Integration
+    Integrates external security intelligence from VirusTotal and AbuseIPDB.
+* ⚡ Static & Real-Time Analysis
+    Supports analysis using both existing data and live URL-based information.
 
 ⸻
 
 🛠️ Tech Stack
 
-* Python
-* Machine Learning / AI
-* Flask
-* Web Scraping & Crawling
-* VirusTotal API
-* AbuseIPDB API
-* HTML, CSS & JavaScript
-
-⸻
-
-📂 Project Structure
-
-Catch-The-Phish/
-│
-├── app.py                  # Main application
-├── features_extract.py     # URL and website feature extraction
-├── myscrappy/              # Web crawling and scraping components
-├── templates/              # Application templates
-├── static/                 # Static assets
-├── indian_banks.txt        # Reference data
-└── requirements.txt        # Project dependencies
+Category	Technologies
+Language	Python
+AI/ML	Machine Learning
+Backend	Flask
+Security	VirusTotal, AbuseIPDB
+Analysis	Web Crawling & URL Feature Extraction
+Frontend	HTML, CSS, JavaScript
 
 ⸻
 
@@ -82,58 +82,84 @@ Catch-The-Phish/
 git clone https://github.com/Taherhotel/Catch-The-Phish.git
 cd Catch-The-Phish
 
-2. Install Dependencies
+2. Create a Virtual Environment (Recommended)
+
+python -m venv venv
+
+Activate it:
+
+Windows
+
+venv\Scripts\activate
+
+macOS/Linux
+
+source venv/bin/activate
+
+3. Install Dependencies
 
 pip install -r requirements.txt
 
-3. Configure API Keys
+4. Configure API Keys
 
-Configure the required API credentials for services such as VirusTotal and AbuseIPDB before running the application.
+This project uses external threat intelligence services. Configure your API credentials before running the application.
 
-⚠️ Never commit API keys or sensitive credentials directly to the repository.
+⚠️ Security Note: Never hardcode or commit API keys to a public repository. Use environment variables or a local configuration file excluded through .gitignore.
 
-4. Run the Application
+5. Run the Application
 
 python app.py
 
-Open the application in your browser and submit a URL for analysis.
+⸻
+
+🧠 Detection Approach
+
+Catch The Phish uses a multi-layered approach to phishing detection.
+
+Instead of relying on a single indicator, the system combines:
+
+URL Characteristics
+        +
+Website Content Analysis
+        +
+Machine Learning Classification
+        +
+Real-Time Threat Intelligence
+        ↓
+  Phishing Detection Result
+
+This approach helps provide a broader security assessment and demonstrates the application of AI to real-world cybersecurity problems.
 
 ⸻
 
-🔐 Security Perspective
+📊 Key Learnings
 
-Catch The Phish was built with the idea that effective phishing detection requires a layered security approach.
+Building this project provided hands-on experience with:
 
-Instead of trusting a single signal, the system combines:
-
-* Machine learning predictions
-* URL-based indicators
-* Website and content analysis
-* External threat intelligence
-
-This approach helps create a more comprehensive view of potentially malicious URLs and demonstrates how AI can be applied to real-world cybersecurity problems.
-
-⸻
-
-🎯 What I Learned
-
-Building Catch The Phish gave me hands-on experience with the intersection of AI and cybersecurity, including:
-
-* Applying machine learning to security classification problems
-* Extracting meaningful features from URLs and web content
-* Working with real-world threat intelligence APIs
-* Understanding phishing techniques and indicators of compromise
-* Building an end-to-end security-focused web application
+* Applying Machine Learning to cybersecurity problems
+* Understanding phishing techniques and malicious URL patterns
+* Feature extraction and data analysis
+* Web crawling and website analysis
+* Integrating third-party threat intelligence APIs
+* Building an end-to-end AI-powered security application
 
 ⸻
 
 🔮 Future Improvements
 
-* Improve model performance with larger and more diverse datasets
-* Add explainable AI to show why a URL was flagged
-* Develop a browser extension for real-time phishing protection
-* Add continuous threat intelligence feeds
-* Expand detection to include visual similarity and brand impersonation
+* Improve detection using larger and more diverse datasets
+* Add explainable AI to provide reasons behind predictions
+* Develop a browser extension for real-time protection
+* Add additional threat intelligence sources
+* Implement continuous monitoring for suspicious domains
+
+⸻
+
+⚠️ Disclaimer
+
+Catch The Phish is developed for educational and research purposes. Detection results should be treated as an additional security signal and not as a guarantee that a website is completely safe or malicious.
+
+Always exercise caution when visiting unknown links or websites.
 
 ⸻
 
@@ -141,4 +167,8 @@ Building Catch The Phish gave me hands-on experience with the intersection of AI
 
 Taher
 
-If you found this project interesting, feel free to ⭐ the repository!
+🔗 GitHub: https://github.com/Taherhotel
+
+⸻
+
+⭐ If you found this project interesting, consider giving the repository a star!
